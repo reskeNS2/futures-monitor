@@ -10,23 +10,21 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
 # ============================================================
 WHATSAPP_PHONE = "381603339783"
 WHATSAPP_API_KEY = "8286403"
-
-SPIKE_THRESHOLD = 2.0  # koliko puta iznad proseka = alarm
+SPIKE_THRESHOLD = 2.0
 
 MARKETS = [
-    {"symbol": "CL=F",  "name": "Nafta WTI",     "emoji": "🛢️"},
-    {"symbol": "GC=F",  "name": "Zlato",           "emoji": "🥇"},
-    {"symbol": "SI=F",  "name": "Srebro",           "emoji": "🥈"},
-    {"symbol": "NG=F",  "name": "Gas (Prirodni)",   "emoji": "🔥"},
-    {"symbol": "ES=F",  "name": "S&P 500",          "emoji": "📈"},
-    {"symbol": "ZW=F",  "name": "Pšenica",          "emoji": "🌾"},
-    {"symbol": "ZC=F",  "name": "Kukuruz",          "emoji": "🌽"},
-    {"symbol": "CC=F",  "name": "Kakao",            "emoji": "🍫"},
-    {"symbol": "DX=F",  "name": "Dolar Index (DXY)", "emoji": "💵"},
-    {"symbol": "BTC=F", "name": "Bitcoin",          "emoji": "₿"},
+    {"symbol": "CL=F",  "name": "Nafta WTI",        "emoji": "🛢️"},
+    {"symbol": "GC=F",  "name": "Zlato",              "emoji": "🥇"},
+    {"symbol": "SI=F",  "name": "Srebro",              "emoji": "🥈"},
+    {"symbol": "NG=F",  "name": "Gas (Prirodni)",      "emoji": "🔥"},
+    {"symbol": "ES=F",  "name": "S&P 500",             "emoji": "📈"},
+    {"symbol": "ZW=F",  "name": "Pšenica",             "emoji": "🌾"},
+    {"symbol": "ZC=F",  "name": "Kukuruz",             "emoji": "🌽"},
+    {"symbol": "CC=F",  "name": "Kakao",               "emoji": "🍫"},
+    {"symbol": "DX=F",  "name": "Dolar Index (DXY)",   "emoji": "💵"},
+    {"symbol": "BTC=F", "name": "Bitcoin",             "emoji": "₿"},
 ]
 
-# Pamti koje alarme smo već poslali danas
 alerts_sent = {}
 
 # ============================================================
@@ -69,6 +67,51 @@ def fetch_quote(symbol):
     except Exception as e:
         logging.warning(f"Greška za {symbol}: {e}")
         return None
+
+# ============================================================
+# CLAUDE AI ANALIZA
+# ============================================================
+def get_ai_analysis(market, data):
+    try:
+        price = data["price"]
+        change_pct = ((price - data["prev_close"]) / data["prev_close"] * 100) if data["prev_close"] else 0
+        vol_ratio = data["vol_ratio"]
+
+        prompt = f"""Ti si ekspert za futures tržišta. Analiziraj ovaj signal i daj kratak savet na srpskom jeziku.
+
+Instrument: {market['emoji']} {market['name']} ({market['symbol']})
+Cena: {price:.2f} {data['currency']}
+Promena danas: {change_pct:+.2f}%
+Volume ratio: {vol_ratio:.1f}x iznad proseka (SPIKE)
+
+Odgovori u TAČNO ovom formatu (bez dodatnog teksta):
+ANALIZA: [1 rečenica šta se dešava i zašto]
+AKCIJA: [KUPI / PRODAJ / ČEKAJ] - [1 rečenica obrazloženje]
+RIZIK: [VISOK / SREDNJI / NIZAK] - [1 rečenica upozorenje]
+
+Napomena: Ovo je edukativna simulacija, ne finansijski savet."""
+
+        response = requests.post(
+            "https://api.anthropic.com/v1/messages",
+            headers={
+                "Content-Type": "application/json",
+                "x-api-key": "ANTHROPIC_API_KEY",
+                "anthropic-version": "2023-06-01"
+            },
+            json={
+                "model": "claude-haiku-4-5-20251001",
+                "max_tokens": 300,
+                "messages": [{"role": "user", "content": prompt}]
+            },
+            timeout=15
+        )
+
+        result = response.json()
+        return result["content"][0]["text"].strip()
+
+    except Exception as e:
+        logging.error(f"AI greška: {e}")
+        return "ANALIZA: Nije moguće učitati AI analizu.\nAKCIJA: ČEKAJ - Konsultuj se sa brokerom.\nRIZIK: VISOK - Uvek postoji rizik pri trgovanju."
 
 # ============================================================
 # WHATSAPP
@@ -114,29 +157,38 @@ def check_markets():
             f"Promena: {change_pct:+.2f}% | Vol ratio: {vol_ratio:.2f}x"
         )
 
-        # Provjeri spike
         if vol_ratio >= SPIKE_THRESHOLD:
             alert_key = f"{symbol}_{today}"
             if alert_key not in alerts_sent:
                 alerts_sent[alert_key] = True
+
+                logging.info(f"🤖 Tražim AI analizu za {name}...")
+                ai_analysis = get_ai_analysis(market, data)
+
                 msg = (
-                    f"🔺 VOLUME SPIKE DETEKTOVAN!\n\n"
+                    f"🔺 VOLUME SPIKE!\n"
                     f"{emoji} {name} ({symbol})\n"
-                    f"📊 Vol ratio: {vol_ratio:.1f}x iznad proseka\n"
                     f"💰 Cena: {price:.2f} {data['currency']}\n"
+                    f"📊 Vol ratio: {vol_ratio:.1f}x\n"
                     f"📈 Promena: {change_pct:+.2f}%\n"
-                    f"🕐 Vreme: {datetime.now().strftime('%H:%M %d.%m.%Y')}\n\n"
-                    f"⚡ FuturesScout Monitor"
+                    f"🕐 {datetime.now().strftime('%H:%M %d.%m.%Y')}\n"
+                    f"─────────────────\n"
+                    f"🤖 AI ANALIZA:\n"
+                    f"{ai_analysis}\n"
+                    f"─────────────────\n"
+                    f"⚠️ Ovo je edukativna simulacija!\n"
+                    f"⚡ FuturesScout"
                 )
-                logging.info(f"🔺 SPIKE! Šaljem WhatsApp za {name}...")
+
+                logging.info(f"📲 Šaljem WhatsApp za {name}...")
                 send_whatsapp(msg)
 
-        time.sleep(1)  # pauza između zahteva
+        time.sleep(1)
 
 
 def main():
     logging.info("🚀 FuturesScout Monitor startovan")
-    send_whatsapp("✅ FuturesScout Monitor je aktivan! Pratim 9 tržišta 24/7.")
+    send_whatsapp("✅ FuturesScout Monitor aktivan!\nAI analiza uključena 🤖\nPratim 10 tržišta 24/7.")
 
     while True:
         try:
@@ -144,10 +196,10 @@ def main():
         except Exception as e:
             logging.error(f"Greška u loop-u: {e}")
 
-        # Čekaj 30 minuta do sledeće provere
         logging.info("⏳ Sledeća provera za 30 minuta...")
         time.sleep(30 * 60)
 
 
 if __name__ == "__main__":
     main()
+
