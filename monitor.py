@@ -1,4 +1,5 @@
 import requests
+import os
 import time
 import logging
 from datetime import datetime
@@ -95,7 +96,7 @@ Napomena: Ovo je edukativna simulacija, ne finansijski savet."""
             "https://api.anthropic.com/v1/messages",
             headers={
                 "Content-Type": "application/json",
-                "x-api-key": "ANTHROPIC_API_KEY",
+                "x-api-key": os.environ.get("ANTHROPIC_API_KEY", ""),
                 "anthropic-version": "2023-06-01"
             },
             json={
