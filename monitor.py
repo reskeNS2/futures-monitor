@@ -1,4 +1,4 @@
-import requests
+ import requests
 import time
 import logging
 import os
@@ -19,7 +19,7 @@ MARKETS = [
     {"symbol": "ZW=F",  "name": "Pšenica",             "emoji": "🌾"},
     {"symbol": "ZC=F",  "name": "Kukuruz",             "emoji": "🌽"},
     {"symbol": "CC=F",  "name": "Kakao",               "emoji": "🍫"},
-    {"symbol": "DX=F",  "name": "Dolar Index (DXY)",   "emoji": "💵"},
+    {"symbol": "DX-Y.NYB",  "name": "Dolar Index (DXY)",   "emoji": "💵"},,
     {"symbol": "BTC=F", "name": "Bitcoin",             "emoji": "₿"},
 ]
  
