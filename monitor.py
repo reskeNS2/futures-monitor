@@ -107,8 +107,16 @@ Napomena: Ovo je edukativna simulacija, ne finansijski savet."""
             timeout=15
         )
 
-        result = response.json()
-        return result["content"][0]["text"].strip()
+       result = response.json()
+        logging.info(f"AI response: {result}")
+        if "content" in result:
+            return result["content"][0]["text"].strip()
+        elif "error" in result:
+            logging.error(f"AI API greška: {result['error']}")
+            return f"ANALIZA: API greška - {result['error'].get('message', 'nepoznato')}\nAKCIJA: ČEKAJ - Proveri API ključ.\nRIZIK: VISOK - Monitor radi, AI analiza privremeno nedostupna."
+        else:
+            logging.error(f"Neočekivan odgovor: {result}")
+            return "ANALIZA: Neočekivan odgovor od AI.\nAKCIJA: ČEKAJ\nRIZIK: VISOK"
 
     except Exception as e:
         logging.error(f"AI greška: {e}")
